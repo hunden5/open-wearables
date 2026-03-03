@@ -6,9 +6,9 @@ from .metadata import (
     TimeseriesMetadata,
 )
 from .pagination import (
+    OldPaginatedResponse,
     PaginatedResponse,
     Pagination,
-    OldPaginatedResponse,
 )
 from .query_params import (
     FilterParams,
