@@ -1,6 +1,6 @@
 from typing import TypedDict
 
-from app.constants.series_types import SleepPhase
+from app.constants.series_types.apple import SleepPhase
 
 
 class SleepState(TypedDict):
@@ -8,7 +8,9 @@ class SleepState(TypedDict):
 
     uuid: str
     source_name: str | None
-    device_id: str | None
+    device_model: str | None
+    provider: str | None
+
     start_time: str
     last_timestamp: str
 
@@ -21,8 +23,8 @@ class SleepState(TypedDict):
 
 SLEEP_START_STATES = {
     SleepPhase.IN_BED,
-    SleepPhase.ASLEEP_UNSPECIFIED,
-    SleepPhase.ASLEEP_CORE,
+    SleepPhase.SLEEPING,
+    SleepPhase.ASLEEP_LIGHT,
     SleepPhase.ASLEEP_DEEP,
     SleepPhase.ASLEEP_REM,
 }
