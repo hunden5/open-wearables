@@ -1,4 +1,5 @@
 from .sync_results import (
+    ProviderSyncResult,
     SyncAllUsersResult,
     SyncVendorDataResult,
 )
@@ -17,6 +18,7 @@ __all__ = [
     # Sync results
     "SyncVendorDataResult",
     "SyncAllUsersResult",
+    "ProviderSyncResult",
     # Upload response
     "UploadDataResponse",
     # System info

@@ -5,6 +5,7 @@ from .device_type import (
     infer_device_type_from_source_name,
 )
 from .provider import (
+    DEFAULT_PROVIDER_PRIORITY,
     ProviderName,
 )
 from .series_types import (
@@ -23,6 +24,7 @@ from .workout_types import (
 __all__ = [
     # Provider
     "ProviderName",
+    "DEFAULT_PROVIDER_PRIORITY",
     # DeviceType
     "DeviceType",
     "DEFAULT_DEVICE_TYPE_PRIORITY",
