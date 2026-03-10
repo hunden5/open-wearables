@@ -163,6 +163,7 @@ class SyncRequest(BaseModel):
     provider: str
     sdkVersion: str
     syncTimestamp: datetime
+    timezone: str | None = None
     data: SyncRequestData = Field(
         default_factory=SyncRequestData,
         description="Container for health data arrays (records, sleep, workouts)",

@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import UUID
 
 from sqlalchemy import desc, func, or_
 from sqlalchemy.orm import Query
@@ -12,6 +13,13 @@ from app.schemas.user import USER_SORT_COLUMNS, UserCreateInternal, UserQueryPar
 class UserRepository(CrudRepository[User, UserCreateInternal, UserUpdateInternal]):
     def __init__(self, model: type[User]):
         super().__init__(model)
+
+    def update_timezone(self, db_session: DbSession, user_id: UUID, timezone: str) -> None:
+        """Update the user's IANA timezone identifier."""
+        user = self.get(db_session, user_id)
+        if user:
+            user.timezone = timezone
+            db_session.flush()
 
     def get_total_count(self, db_session: DbSession) -> int:
         """Get total count of users."""

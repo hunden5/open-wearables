@@ -17,6 +17,7 @@ class User(BaseDbModel):
     email: Mapped[email | None]
 
     external_user_id: Mapped[Unique[str_255] | None]
+    timezone: Mapped[str_100 | None]
 
     personal_record: Mapped["PersonalRecord | None"] = relationship(
         back_populates="user",

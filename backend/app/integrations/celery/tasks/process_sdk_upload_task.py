@@ -104,6 +104,20 @@ def process_sdk_upload(
         connection_repo = UserConnectionRepository()
         connection_repo.ensure_sdk_connection(db, user_uuid, provider)
 
+        # Extract and store user timezone from sync payload
+        try:
+            import json
+            from zoneinfo import ZoneInfo
+
+            raw = json.loads(content) if isinstance(content, str) else {}
+            tz_str = raw.get("timezone")
+            if tz_str:
+                ZoneInfo(tz_str)  # validate it's a real IANA timezone
+                user_repo = UserRepository(User)
+                user_repo.update_timezone(db, user_uuid, tz_str)
+        except Exception:
+            pass  # invalid timezone or parse error, skip silently
+
         # Select the appropriate import service based on source
         import_service = _get_import_service(provider)
 

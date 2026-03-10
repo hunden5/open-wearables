@@ -28,6 +28,16 @@ from app.utils.pagination import decode_cursor
 DataSourceIdentity = tuple[UUID, str | None, str | None]
 
 
+def _local_date(column, timezone: str):
+    """Cast a timestamptz column to a date in the given timezone.
+
+    Generates: (timezone('tz', column))::date
+    Equivalent to: (column AT TIME ZONE 'tz')::date
+    """
+    tz = timezone or "UTC"
+    return cast(func.timezone(tz, column), Date)
+
+
 class DataPointSeriesRepository(
     CrudRepository[DataPointSeries, TimeSeriesSampleCreate, TimeSeriesSampleUpdate],
 ):
@@ -401,6 +411,7 @@ class DataPointSeriesRepository(
         user_id: UUID,
         start_date: datetime,
         end_date: datetime,
+        timezone: str = "UTC",
     ) -> list[ActivityAggregateResult]:
         """Get daily activity aggregates from time-series data.
 
@@ -423,7 +434,7 @@ class DataPointSeriesRepository(
         # Build aggregation query
         results = (
             db_session.query(
-                cast(self.model.recorded_at, Date).label("activity_date"),
+                _local_date(self.model.recorded_at, timezone).label("activity_date"),
                 DataSource.source.label("source"),
                 DataSource.device_model.label("device_model"),
                 # Steps - sum for the day
@@ -461,17 +472,17 @@ class DataPointSeriesRepository(
             .filter(
                 DataSource.user_id == user_id,
                 self.model.recorded_at >= start_date,
-                cast(self.model.recorded_at, Date) < cast(end_date, Date),
+                _local_date(self.model.recorded_at, timezone) < cast(end_date, Date),
                 self.model.series_type_definition_id.in_(
                     [steps_id, energy_id, basal_energy_id, hr_id, distance_id, flights_id]
                 ),
             )
             .group_by(
-                cast(self.model.recorded_at, Date),
+                _local_date(self.model.recorded_at, timezone),
                 DataSource.source,
                 DataSource.device_model,
             )
-            .order_by(asc(cast(self.model.recorded_at, Date)))
+            .order_by(asc(_local_date(self.model.recorded_at, timezone)))
             .all()
         )
 
@@ -504,6 +515,7 @@ class DataPointSeriesRepository(
         start_date: datetime,
         end_date: datetime,
         active_threshold: int = 30,
+        timezone: str = "UTC",
     ) -> list[ActiveMinutesResult]:
         """Get daily active/sedentary minutes from step data.
 
@@ -527,7 +539,7 @@ class DataPointSeriesRepository(
         # Subquery: bucket step data by minute and sum steps per minute
         minute_bucket = (
             db_session.query(
-                cast(self.model.recorded_at, Date).label("activity_date"),
+                _local_date(self.model.recorded_at, timezone).label("activity_date"),
                 DataSource.source,
                 DataSource.device_model,
                 minute_trunc.label("minute_bucket"),
@@ -537,11 +549,11 @@ class DataPointSeriesRepository(
             .filter(
                 DataSource.user_id == user_id,
                 self.model.recorded_at >= start_date,
-                cast(self.model.recorded_at, Date) < cast(end_date, Date),
+                _local_date(self.model.recorded_at, timezone) < cast(end_date, Date),
                 self.model.series_type_definition_id == steps_id,
             )
             .group_by(
-                cast(self.model.recorded_at, Date),
+                _local_date(self.model.recorded_at, timezone),
                 DataSource.source,
                 DataSource.device_model,
                 minute_trunc,
@@ -599,6 +611,7 @@ class DataPointSeriesRepository(
         light_max: int,
         moderate_max: int,
         vigorous_max: int,
+        timezone: str = "UTC",
     ) -> list[IntensityMinutesResult]:
         """Get daily intensity minutes from heart rate data.
 
@@ -623,7 +636,7 @@ class DataPointSeriesRepository(
         # Subquery: bucket HR data by minute and get avg HR per minute
         minute_bucket = (
             db_session.query(
-                cast(self.model.recorded_at, Date).label("activity_date"),
+                _local_date(self.model.recorded_at, timezone).label("activity_date"),
                 DataSource.source,
                 DataSource.device_model,
                 minute_trunc.label("minute_bucket"),
@@ -633,11 +646,11 @@ class DataPointSeriesRepository(
             .filter(
                 DataSource.user_id == user_id,
                 self.model.recorded_at >= start_date,
-                cast(self.model.recorded_at, Date) < cast(end_date, Date),
+                _local_date(self.model.recorded_at, timezone) < cast(end_date, Date),
                 self.model.series_type_definition_id == hr_id,
             )
             .group_by(
-                cast(self.model.recorded_at, Date),
+                _local_date(self.model.recorded_at, timezone),
                 DataSource.source,
                 DataSource.device_model,
                 minute_trunc,

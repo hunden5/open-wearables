@@ -21,6 +21,12 @@ from app.utils.pagination import decode_cursor
 DataSourceIdentity = tuple[UUID, str | None, str | None]
 
 
+def _local_date(column, timezone: str):
+    """Cast a timestamptz column to a date in the given timezone."""
+    tz = timezone or "UTC"
+    return cast(func.timezone(tz, column), Date)
+
+
 class EventRecordRepository(
     CrudRepository[EventRecord, EventRecordCreate, EventRecordUpdate],
 ):
@@ -297,6 +303,7 @@ class EventRecordRepository(
         end_date: datetime,
         cursor: str | None,
         limit: int,
+        timezone: str = "UTC",
     ) -> list[dict]:
         """Get daily sleep summaries aggregated by date, source, and device_model.
 
@@ -316,7 +323,7 @@ class EventRecordRepository(
         # Cast UUID to text for min() since PostgreSQL doesn't support min() on UUID directly
         subquery = (
             db_session.query(
-                cast(EventRecord.end_datetime, Date).label("sleep_date"),
+                _local_date(EventRecord.end_datetime, timezone).label("sleep_date"),
                 # Main sleep times (exclude naps)
                 func.min(case((is_main_sleep, EventRecord.start_datetime), else_=None)).label("min_start_time"),
                 func.max(case((is_main_sleep, EventRecord.end_datetime), else_=None)).label("max_end_time"),
@@ -363,10 +370,10 @@ class EventRecordRepository(
                 DataSource.user_id == user_id,
                 EventRecord.category == "sleep",
                 EventRecord.end_datetime >= start_date,
-                cast(EventRecord.end_datetime, Date) < cast(end_date, Date),
+                _local_date(EventRecord.end_datetime, timezone) < cast(end_date, Date),
             )
             .group_by(
-                cast(EventRecord.end_datetime, Date),
+                _local_date(EventRecord.end_datetime, timezone),
                 DataSource.source,
                 DataSource.device_model,
             )
@@ -451,6 +458,7 @@ class EventRecordRepository(
         user_id: UUID,
         start_date: datetime,
         end_date: datetime,
+        timezone: str = "UTC",
     ) -> list[dict]:
         """Get daily workout aggregates including elevation, distance, and energy.
 
@@ -462,7 +470,7 @@ class EventRecordRepository(
         """
         results = (
             db_session.query(
-                cast(self.model.end_datetime, Date).label("workout_date"),
+                _local_date(self.model.end_datetime, timezone).label("workout_date"),
                 DataSource.source,
                 DataSource.device_model,
                 # Sum elevation gain for all workouts on that day
@@ -479,14 +487,14 @@ class EventRecordRepository(
                 DataSource.user_id == user_id,
                 self.model.category == "workout",
                 self.model.end_datetime >= start_date,
-                cast(self.model.end_datetime, Date) < cast(end_date, Date),
+                _local_date(self.model.end_datetime, timezone) < cast(end_date, Date),
             )
             .group_by(
-                cast(self.model.end_datetime, Date),
+                _local_date(self.model.end_datetime, timezone),
                 DataSource.source,
                 DataSource.device_model,
             )
-            .order_by(asc(cast(self.model.end_datetime, Date)))
+            .order_by(asc(_local_date(self.model.end_datetime, timezone)))
             .all()
         )
 
