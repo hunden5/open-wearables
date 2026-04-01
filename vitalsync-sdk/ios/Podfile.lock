@@ -1,0 +1,36 @@
+PODS:
+  - Flutter (1.0.0)
+  - open_wearables_health_sdk (0.0.11):
+    - Flutter
+    - OpenWearablesHealthSDK (~> 0.6.0)
+  - OpenWearablesHealthSDK (0.6.0)
+  - shared_preferences_foundation (0.0.1):
+    - Flutter
+    - FlutterMacOS
+
+DEPENDENCIES:
+  - Flutter (from `Flutter`)
+  - open_wearables_health_sdk (from `.symlinks/plugins/open_wearables_health_sdk/ios`)
+  - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
+
+SPEC REPOS:
+  trunk:
+    - OpenWearablesHealthSDK
+
+EXTERNAL SOURCES:
+  Flutter:
+    :path: Flutter
+  open_wearables_health_sdk:
+    :path: ".symlinks/plugins/open_wearables_health_sdk/ios"
+  shared_preferences_foundation:
+    :path: ".symlinks/plugins/shared_preferences_foundation/darwin"
+
+SPEC CHECKSUMS:
+  Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
+  open_wearables_health_sdk: 25497bfe21f4058755d8362c16b52c5881e49b5a
+  OpenWearablesHealthSDK: adf0f864cba78d8a2095384dfefb84abc100646a
+  shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb
+
+PODFILE CHECKSUM: 6c32b81f678aa86f66a8b05175fac7dee6a4d818
+
+COCOAPODS: 1.16.2

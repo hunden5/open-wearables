@@ -1,0 +1,186 @@
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:open_wearables_health_sdk/health_data_type.dart';
+import 'package:open_wearables_health_sdk/open_wearables_health_sdk.dart';
+
+class HealthService {
+  static final HealthService _instance = HealthService._internal();
+  factory HealthService() => _instance;
+  HealthService._internal();
+
+  static const String _host = 'https://backend-production-07b2.up.railway.app';
+
+  static final List<HealthDataType> _vitalSyncTypes = [
+    HealthDataType.heartRate,
+    HealthDataType.restingHeartRate,
+    HealthDataType.heartRateVariabilitySDNN,
+    HealthDataType.steps,
+    HealthDataType.sleep,
+    HealthDataType.oxygenSaturation,
+    HealthDataType.bodyTemperature,
+    HealthDataType.bloodGlucose,
+    HealthDataType.bloodPressureSystolic,
+    HealthDataType.bloodPressureDiastolic,
+    HealthDataType.bodyMass,
+    HealthDataType.vo2Max,
+    HealthDataType.respiratoryRate,
+    HealthDataType.activeEnergy,
+    HealthDataType.workout,
+  ];
+
+bool get isSignedIn => OpenWearablesHealthSdk.isSignedIn;
+bool get isSyncing => OpenWearablesHealthSdk.isSyncActive;
+
+Future<void> initialize() async {
+  await OpenWearablesHealthSdk.configure(host: _host);
+}
+
+Future<void> syncNow() async {
+  try {
+    await _refreshTokens();
+    await OpenWearablesHealthSdk.requestAuthorization(types: _vitalSyncTypes);
+    await OpenWearablesHealthSdk.resetAnchors();
+    await OpenWearablesHealthSdk.syncNow();
+  } catch (_) {}
+}
+
+  Future<String?> connectWithInvitationCode(String invitationCode) async {
+    try {
+      final h = _host.endsWith('/') ? _host.substring(0, _host.length - 1) : _host;
+      final redeemUrl = Uri.parse('$h/api/v1/invitation-code/redeem');
+
+      final response = await http.post(
+        redeemUrl,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'code': invitationCode}),
+      );
+
+      if (response.statusCode != 200) {
+        return 'Redeem failed (${response.statusCode}): ${response.body}';
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final accessToken = data['access_token'] as String?;
+      final refreshToken = data['refresh_token'] as String?;
+      final userId = data['user_id'] as String?;
+
+      if (accessToken == null || refreshToken == null || userId == null) {
+        return 'Invalid response from server';
+      }
+
+      final bearerToken = accessToken.startsWith('Bearer ')
+          ? accessToken
+          : 'Bearer $accessToken';
+
+      await OpenWearablesHealthSdk.signIn(
+        userId: userId,
+        accessToken: bearerToken,
+        refreshToken: refreshToken,
+      );
+
+      return null;
+    } catch (e) {
+      return 'Connection failed: $e';
+    }
+  }
+
+  Future<bool> requestPermissions() async {
+    try {
+      return await OpenWearablesHealthSdk.requestAuthorization(
+        types: _vitalSyncTypes,
+      );
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<bool> startSync() async {
+    try {
+      // Refresh tokens before starting background sync so the SDK has
+      // a fresh access token for its first background task execution.
+      await _refreshTokens();
+      return await OpenWearablesHealthSdk.startBackgroundSync();
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Workaround for SDK token refresh bug (open_wearables_health_sdk <= 0.0.9).
+  //
+  // The SDK's automatic refresh logic captures the access token in a local
+  // variable before sending the sync request. After receiving a 401 it calls
+  // the refresh endpoint successfully (200), stores the new token to Keychain,
+  // but retries the original request using the stale captured variable instead
+  // of reading the newly stored token. The result: refresh returns 200, retry
+  // still returns 401, sync never completes.
+  //
+  // Fix: proactively refresh in Dart before every sync and push the fresh
+  // tokens into the SDK via updateTokens(). The SDK then holds a valid token
+  // before it makes any network request, so the automatic refresh path is
+  // never triggered.
+  //
+  // Remove this method (and the calls to it) once the upstream fix lands.
+  Future<void> _refreshTokens() async {
+    try {
+      final credentials = await OpenWearablesHealthSdk.getStoredCredentials();
+      final refreshToken = credentials['refreshToken'] as String?;
+
+      if (refreshToken == null || refreshToken.isEmpty) {
+        // No refresh token stored (API key auth or not yet signed in).
+        return;
+      }
+
+      final h = _host.endsWith('/') ? _host.substring(0, _host.length - 1) : _host;
+      final refreshUrl = Uri.parse('$h/api/v1/token/refresh');
+
+      final response = await http.post(
+        refreshUrl,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'refresh_token': refreshToken}),
+      ).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode != 200) {
+        // Refresh failed - let the SDK attempt its own refresh.
+        // Log for diagnostics but do not throw; sync can still proceed.
+        // ignore: avoid_print
+        print('[HealthService] Token refresh failed (${response.statusCode}), proceeding with existing token');
+        return;
+      }
+
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final newAccessToken = data['access_token'] as String?;
+      final newRefreshToken = data['refresh_token'] as String?;
+
+      if (newAccessToken == null) {
+        return;
+      }
+
+      final bearerToken = newAccessToken.startsWith('Bearer ')
+          ? newAccessToken
+          : 'Bearer $newAccessToken';
+
+      await OpenWearablesHealthSdk.updateTokens(
+        accessToken: bearerToken,
+        refreshToken: newRefreshToken,
+      );
+    } catch (e) {
+      // Non-fatal: if the proactive refresh fails for any reason (network,
+      // timeout, etc.) the SDK still has its stored token and may succeed.
+      // ignore: avoid_print
+      print('[HealthService] Proactive token refresh error: $e');
+    }
+  }
+
+
+  Future<void> stopSync() async {
+    await OpenWearablesHealthSdk.stopBackgroundSync();
+  }
+
+  Future<void> signOut() async {
+    await OpenWearablesHealthSdk.signOut();
+  }
+
+  Future<Map<String, dynamic>> getSyncStatus() async {
+    return OpenWearablesHealthSdk.getSyncStatus();
+  }
+}
